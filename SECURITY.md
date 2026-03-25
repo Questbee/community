@@ -8,7 +8,7 @@ Only the latest release receives security fixes.
 
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
-Email **hello@questbee.io** with:
+Email **warionv@gmail.com** with:
 - A description of the vulnerability
 - Steps to reproduce
 - Potential impact
