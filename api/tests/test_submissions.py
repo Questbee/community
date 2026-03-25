@@ -40,6 +40,7 @@ class TestProcessSubmission:
 
         # Simulate existing record found
         existing_submission = MagicMock(spec=Submission)
+        existing_submission.id = "server-sub-id-999"
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing_submission
         db.execute = AsyncMock(return_value=mock_result)
@@ -51,7 +52,9 @@ class TestProcessSubmission:
         )
         status, id_or_uuid, error = await _process_submission(sub, db)
         assert status == "ignored"
-        assert id_or_uuid == "dup-uuid-1234"
+        # On duplicate, _process_submission returns the existing server submission ID
+        # so the mobile client can use it for media uploads.
+        assert id_or_uuid == "server-sub-id-999"
         assert error is None
 
     @pytest.mark.asyncio
@@ -188,7 +191,8 @@ async def test_bulk_duplicate_ignored():
     # First is accepted, second is ignored
     assert len(body["accepted"]) == 1
     assert len(body["ignored"]) == 1
-    assert body["ignored"][0] == "same-uuid"
+    # ignored entries are objects {local_uuid, id} so the mobile client gets the server ID
+    assert body["ignored"][0]["local_uuid"] == "same-uuid"
     assert len(body["errors"]) == 0
 
 
@@ -278,6 +282,8 @@ async def test_bulk_mixed_batch():
     assert len(body["errors"]) == 1
     assert body["errors"][0]["local_uuid"] == "unknown-fv-uuid"
     assert len(body["ignored"]) == 1
-    assert body["ignored"][0] == "known-dup-uuid"
+    # ignored entries are objects {local_uuid, id} so the mobile client gets the server ID
+    assert body["ignored"][0]["local_uuid"] == "known-dup-uuid"
     assert len(body["accepted"]) == 1
-    assert body["accepted"][0] == "brand-new-sub-id"
+    # accepted entries are objects {local_uuid, id} for mobile ID reconciliation
+    assert body["accepted"][0]["id"] == "brand-new-sub-id"
