@@ -1,0 +1,15 @@
+# Production overrides — use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+services:
+  api:
+    ports: []          # Remove direct port exposure; use a reverse proxy
+    networks:
+      - internal
+      - external
+    environment:
+      DATABASE_URL: postgresql+asyncpg://questbee:${DB_PASSWORD}@db/questbee
+      SECRET_KEY: ${SECRET_KEY}
+      MEDIA_ROOT: /data/media
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+
+  web:
+    ports: []          # Handled by reverse proxy
