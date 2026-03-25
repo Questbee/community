@@ -1,5 +1,7 @@
 # Questbee Community Edition
 
+[![CI](https://github.com/Questbee/community/actions/workflows/ci.yml/badge.svg)](https://github.com/Questbee/community/actions/workflows/ci.yml)
+
 Questbee is a self-hosted, offline-first field data collection platform. Build forms in the browser, collect data on Android with no internet required, and sync automatically when connectivity is restored — all on your own infrastructure.
 
 **No external cloud. No per-submission fees. Full data sovereignty.**
@@ -42,8 +44,8 @@ Text, textarea, number, email, phone, date, time, datetime, single choice, multi
 **Requirements:** Docker and Docker Compose.
 
 ```bash
-git clone https://github.com/questbee/questbee.git
-cd questbee
+git clone https://github.com/Questbee/community.git
+cd community
 cp .env.example .env
 ```
 
@@ -64,7 +66,7 @@ Once ready (look for the banner in the logs):
 | Web dashboard | http://localhost:3000 |
 | API (Swagger docs) | http://localhost:8000/docs |
 
-Log in with the credentials from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in your `.env` (defaults: `admin@questbee.io` / `changeme`). **Change the password on first login.**
+Log in with the credentials from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in your `.env` (defaults: `admin@yourorg.com` / `changeme`). **Change the password on first login.**
 
 ---
 
@@ -76,7 +78,7 @@ All configuration is through environment variables. See [`.env.example`](.env.ex
 |---|---|---|
 | `DB_PASSWORD` | Yes | PostgreSQL password |
 | `SECRET_KEY` | Yes | JWT signing secret (32+ random chars) |
-| `ADMIN_EMAIL` | No | First admin account email (default: `admin@questbee.io`) |
+| `ADMIN_EMAIL` | No | First admin account email (default: `admin@yourorg.com`) |
 | `ADMIN_PASSWORD` | No | First admin account password (default: `changeme`) |
 | `ALLOWED_ORIGINS` | No | CORS origins for the dashboard (default: `http://localhost:3000`) |
 | `NEXT_PUBLIC_API_URL` | No | API URL as seen from the browser (default: `http://localhost:8000/api/v1`) |
@@ -129,9 +131,13 @@ Key production checklist:
 
 ## Mobile app
 
-The mobile app (Android) is distributed as a prebuilt APK and is free for community use. Source code is available with commercial plans.
+The Android app is free to download — no account required on the device.
 
-To pair the app with your server: go to **Settings** in the mobile app, tap **Pair with server**, and scan the QR code shown in the web dashboard under **Settings → Mobile Pairing**.
+**[Download APK → github.com/Questbee/app/releases](https://github.com/Questbee/app/releases)**
+
+To pair the app with your server: log into the web dashboard, go to **Settings → Mobile Pairing**, and click **Generate QR Code**. Open the app, tap **Scan QR Code**, and point the camera at the code. The app connects and downloads your forms automatically.
+
+Mobile app source code is commercial and available with paid plans.
 
 ---
 
