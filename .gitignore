@@ -42,3 +42,6 @@ logs/
 
 # Docker
 *.override.yml
+
+# Internal documentation (AI-generated, not for public repo)
+docs/
