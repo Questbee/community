@@ -701,13 +701,13 @@ export default function FormBuilderPage() {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <a
-                href="https://github.com/Questbee/community/releases/latest"
+                href="https://github.com/Questbee/app/releases/latest"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-brand-700 text-xs font-semibold rounded-lg hover:bg-brand-50 transition-colors"
               >
                 <Download size={13} />
-                Get the App
+                Download App
               </a>
               <button
                 onClick={() => setJustPublished(false)}
