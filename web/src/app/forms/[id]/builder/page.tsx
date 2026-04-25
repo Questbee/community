@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, TriangleAlert, Upload, Download, Save, Send, CheckCircle2, PencilLine, Lock, ChevronUp, ChevronDown, X } from "lucide-react";
+import { ArrowLeft, TriangleAlert, Upload, Download, Save, Send, CheckCircle2, PencilLine, Lock, ChevronUp, ChevronDown, X, Copy, Search, ChevronRight } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Spinner from "@/components/Spinner";
 import FieldIcon from "@/components/FieldIcon";
@@ -61,6 +61,7 @@ interface FormField {
 interface FormSchema {
   version: number;
   title: string;
+  description?: string;
   fields: FormField[];
 }
 
@@ -159,6 +160,23 @@ function slugifyOption(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/, "") || "option";
 }
 
+/** Convert a field label into a field ID slug. */
+function slugifyLabel(label: string): string {
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/, "");
+  return /^\d/.test(slug) ? `f_${slug}` : slug || "";
+}
+
+/** Derive a unique field ID from a label, avoiding conflicts with existing IDs. */
+function deriveUniqueId(label: string, existingIds: string[], excludeId?: string): string {
+  const base = slugifyLabel(label);
+  if (!base) return excludeId ?? `field_${Date.now()}`;
+  const others = existingIds.filter((id) => id !== excludeId);
+  if (!others.includes(base)) return base;
+  let i = 2;
+  while (others.includes(`${base}_${i}`)) i++;
+  return `${base}_${i}`;
+}
+
 /** Flatten all fields (including nested group/repeat children) into a single list. */
 function getAllFields(fields: FormField[]): FormField[] {
   const result: FormField[] = [];
@@ -203,6 +221,9 @@ export default function FormBuilderPage() {
   // Group/repeat editing context
   const [activeGroupIdx, setActiveGroupIdx] = useState<number | null>(null);
   const [selectedNestedIdx, setSelectedNestedIdx] = useState<number | null>(null);
+
+  const [paletteSearch, setPaletteSearch] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({ Basic: true });
 
   const { toast } = useToast();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -353,6 +374,29 @@ export default function FormBuilderPage() {
     setSelectedNestedIdx(null);
   }
 
+  function duplicateField(idx: number) {
+    const original = schema.fields[idx];
+    const allIds = getAllFields(schema.fields).map((f) => f.id);
+    const newId = `${original.id}_copy`;
+    const uniqueId = allIds.includes(newId) ? `${original.id}_${Date.now()}` : newId;
+    const copy = { ...original, id: uniqueId };
+    const newFields = [...schema.fields];
+    newFields.splice(idx + 1, 0, copy);
+    setSchema((prev) => ({ ...prev, fields: newFields }));
+    setSelectedIdx(idx + 1);
+  }
+
+  function duplicateNestedField(groupIdx: number, nestedIdx: number) {
+    const original = schema.fields[groupIdx].fields![nestedIdx];
+    const allIds = (schema.fields[groupIdx].fields ?? []).map((f) => f.id);
+    const newId = allIds.includes(`${original.id}_copy`) ? `${original.id}_${Date.now()}` : `${original.id}_copy`;
+    const copy = { ...original, id: newId };
+    const nested = [...(schema.fields[groupIdx].fields ?? [])];
+    nested.splice(nestedIdx + 1, 0, copy);
+    updateField(groupIdx, { fields: nested });
+    setSelectedNestedIdx(nestedIdx + 1);
+  }
+
   function updateEditingField(patch: Partial<FormField>) {
     const isNested = activeGroupIdx !== null && selectedNestedIdx !== null;
     if (isNested) {
@@ -493,18 +537,28 @@ export default function FormBuilderPage() {
             >
               <ArrowLeft size={18} />
             </button>
-            <div className="flex items-center gap-1.5 group/title">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5 group/title">
+                <input
+                  type="text"
+                  value={schema.title}
+                  onChange={(e) => isEditable && !previewVersion && setSchema((prev) => ({ ...prev, title: e.target.value }))}
+                  disabled={!isEditable || !!previewVersion}
+                  className="text-lg font-semibold text-gray-900 border-0 focus:outline-none focus:ring-0 bg-transparent disabled:cursor-default min-w-0"
+                  placeholder="Form title"
+                />
+                {isEditable && !previewVersion && (
+                  <PencilLine size={14} className="text-gray-400 flex-shrink-0 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+                )}
+              </div>
               <input
                 type="text"
-                value={schema.title}
-                onChange={(e) => isEditable && !previewVersion && setSchema((prev) => ({ ...prev, title: e.target.value }))}
+                value={schema.description ?? ""}
+                onChange={(e) => isEditable && !previewVersion && setSchema((prev) => ({ ...prev, description: e.target.value || undefined }))}
                 disabled={!isEditable || !!previewVersion}
-                className="text-lg font-semibold text-gray-900 border-0 focus:outline-none focus:ring-0 bg-transparent disabled:cursor-default min-w-0"
-                placeholder="Form title"
+                className="text-xs text-gray-400 border-0 focus:outline-none focus:ring-0 bg-transparent disabled:cursor-default min-w-0 italic"
+                placeholder={isEditable && !previewVersion ? "Add a description…" : ""}
               />
-              {isEditable && !previewVersion && (
-                <PencilLine size={14} className="text-gray-400 flex-shrink-0 opacity-0 group-hover/title:opacity-100 transition-opacity" />
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -678,31 +732,87 @@ export default function FormBuilderPage() {
                     <p className="text-xs text-brand-600 mt-0.5">Adding to this group</p>
                   </div>
                 )}
-                <div className="p-3 overflow-y-auto flex-1">
-                  {FIELD_CATEGORIES.map(({ label: catLabel, types }, catIdx) => (
-                    <div key={catLabel}>
-                      <p className={`px-1 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide ${catIdx > 0 ? "pt-3" : "pt-1"}`}>
-                        {catLabel}
-                      </p>
-                      <div className="space-y-0.5">
-                        {types.map((type) => {
-                          const disabledInGroup = activeGroupIdx !== null && (type === "group" || type === "repeat");
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  {/* Search */}
+                  <div className="px-3 pt-2 pb-1 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-transparent">
+                      <Search size={12} className="text-gray-400 flex-shrink-0" />
+                      <input
+                        type="text"
+                        value={paletteSearch}
+                        onChange={(e) => setPaletteSearch(e.target.value)}
+                        placeholder="Filter field types…"
+                        className="flex-1 text-xs bg-transparent focus:outline-none text-gray-700 placeholder-gray-400 min-w-0"
+                      />
+                      {paletteSearch && (
+                        <button onClick={() => setPaletteSearch("")} className="text-gray-400 hover:text-gray-600">
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-3 pt-1 overflow-y-auto flex-1">
+                    {paletteSearch.trim() ? (
+                      // Flat filtered list
+                      <div className="space-y-0.5 pt-1">
+                        {FIELD_TYPES.filter((ft) =>
+                          ft.label.toLowerCase().includes(paletteSearch.toLowerCase())
+                        ).map((ft) => {
+                          const disabledInGroup = activeGroupIdx !== null && (ft.type === "group" || ft.type === "repeat");
                           return (
                             <button
-                              key={type}
-                              onClick={() => addField(type)}
+                              key={ft.type}
+                              onClick={() => addField(ft.type)}
                               disabled={!isEditable || !!previewVersion || disabledInGroup}
                               title={disabledInGroup ? "Cannot nest groups or repeats" : undefined}
                               className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                             >
-                              <FieldIcon type={type} />
-                              {FIELD_TYPE_LABEL[type] ?? type}
+                              <FieldIcon type={ft.type} />
+                              {ft.label}
                             </button>
                           );
                         })}
+                        {FIELD_TYPES.filter((ft) => ft.label.toLowerCase().includes(paletteSearch.toLowerCase())).length === 0 && (
+                          <p className="text-xs text-gray-400 px-3 py-2">No matches.</p>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      // Grouped collapsible categories
+                      FIELD_CATEGORIES.map(({ label: catLabel, types }, catIdx) => {
+                        const isOpen = expandedCategories[catLabel] !== false;
+                        return (
+                          <div key={catLabel} className={catIdx > 0 ? "pt-1" : ""}>
+                            <button
+                              onClick={() => setExpandedCategories((prev) => ({ ...prev, [catLabel]: !isOpen }))}
+                              className="w-full flex items-center justify-between px-1 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors"
+                            >
+                              {catLabel}
+                              <ChevronRight size={11} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                            </button>
+                            {isOpen && (
+                              <div className="space-y-0.5">
+                                {types.map((type) => {
+                                  const disabledInGroup = activeGroupIdx !== null && (type === "group" || type === "repeat");
+                                  return (
+                                    <button
+                                      key={type}
+                                      onClick={() => addField(type)}
+                                      disabled={!isEditable || !!previewVersion || disabledInGroup}
+                                      title={disabledInGroup ? "Cannot nest groups or repeats" : undefined}
+                                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                                    >
+                                      <FieldIcon type={type} />
+                                      {FIELD_TYPE_LABEL[type] ?? type}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
@@ -741,14 +851,13 @@ export default function FormBuilderPage() {
                         <p className="text-amber-700">
                           {isPublished ? "Pending publish" : "Not yet published"}
                         </p>
+                        <p className="text-amber-600 mt-0.5">{schema.fields.length} field{schema.fields.length !== 1 ? "s" : ""}</p>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleExportSchema(schema, "draft"); }}
-                          className="group mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded border border-amber-300 text-amber-700 hover:bg-amber-100 transition-all duration-150"
+                          className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors text-xs font-medium"
                         >
                           <Download size={13} className="flex-shrink-0" />
-                          <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[60px] group-hover:opacity-100 transition-all duration-150 text-xs font-medium whitespace-nowrap">
-                            Export
-                          </span>
+                          Export
                         </button>
                       </div>
                     )}
@@ -773,7 +882,7 @@ export default function FormBuilderPage() {
                               const res = await api.get(`/forms/${formId}/versions/${v.id}`);
                               setPreviewVersion({ version_num: v.version_num, schema: res.data.schema_json });
                             } catch {
-                              alert("Failed to load version.");
+                              toast("Failed to load version.", "error");
                             }
                           }}
                           title="Click to preview this version"
@@ -793,12 +902,10 @@ export default function FormBuilderPage() {
                           <p className="text-gray-400 mt-0.5">{v.submission_count} submission{v.submission_count !== 1 ? "s" : ""}</p>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleExportVersion(v.id, v.version_num); }}
-                            className="group mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 transition-all duration-150"
+                            className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 transition-colors text-xs font-medium"
                           >
                             <Download size={13} className="flex-shrink-0" />
-                            <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[60px] group-hover:opacity-100 transition-all duration-150 text-xs font-medium whitespace-nowrap">
-                              Export
-                            </span>
+                            Export
                           </button>
                         </div>
                       );
@@ -883,6 +990,14 @@ export default function FormBuilderPage() {
                             <ChevronDown size={14} />
                           </button>
                           <button
+                            onClick={(e) => { e.stopPropagation(); duplicateField(idx); }}
+                            disabled={!isEditable || !!previewVersion}
+                            aria-label="Duplicate field"
+                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
                             onClick={(e) => { e.stopPropagation(); deleteField(idx); }}
                             disabled={!isEditable || !!previewVersion}
                             aria-label="Delete field"
@@ -930,6 +1045,12 @@ export default function FormBuilderPage() {
                                       aria-label="Move down"
                                       className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                                     ><ChevronDown size={13} /></button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); duplicateNestedField(idx, nIdx); }}
+                                      disabled={!isEditable || !!previewVersion}
+                                      aria-label="Duplicate field"
+                                      className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                    ><Copy size={13} /></button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); deleteNestedField(idx, nIdx); }}
                                       disabled={!isEditable || !!previewVersion}
@@ -980,6 +1101,12 @@ export default function FormBuilderPage() {
             ) : (
               <div className="space-y-4">
 
+                {/* Field type header */}
+                <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                  <FieldIcon type={editingField.type} />
+                  <span className="text-sm font-semibold text-gray-800">{FIELD_TYPE_LABEL[editingField.type] ?? editingField.type}</span>
+                </div>
+
                 {/* Breadcrumb when editing a nested field */}
                 {editingIsNested && editingGroupField && (
                   <div className="flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -992,21 +1119,28 @@ export default function FormBuilderPage() {
                 )}
 
                 {/* Label */}
-                {(
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                      Label
-                    </label>
-                    <input
-                      type="text"
-                      value={editingField.label}
-                      onChange={(e) => isEditable && !previewVersion && updateEditingField({ label: e.target.value })}
-                      disabled={!isEditable || !!previewVersion}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50"
-                      placeholder="Field label"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    Label
+                  </label>
+                  <input
+                    type="text"
+                    value={editingField.label}
+                    onChange={(e) => {
+                      if (!isEditable || previewVersion) return;
+                      const newLabel = e.target.value;
+                      const patch: Partial<FormField> = { label: newLabel };
+                      const allIds = getAllFields(schema.fields).map((f) => f.id);
+                      if (/^field_\d+$/.test(editingField.id) && newLabel.trim()) {
+                        patch.id = deriveUniqueId(newLabel, allIds, editingField.id);
+                      }
+                      updateEditingField(patch);
+                    }}
+                    disabled={!isEditable || !!previewVersion}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50"
+                    placeholder="Field label"
+                  />
+                </div>
 
                 {/* Hint */}
                 {!["note", "calculated", "divider"].includes(editingField.type) && (
@@ -1197,6 +1331,37 @@ export default function FormBuilderPage() {
                     <p className="text-xs text-gray-400 mt-1">
                       Use field IDs and +, -, *, / operators. Not shown to users.
                     </p>
+                    {(() => {
+                      const numericFields = getAllFields(schema.fields).filter(
+                        (f) => f.id !== editingField.id && ["number", "calculated"].includes(f.type)
+                      );
+                      if (numericFields.length === 0) return null;
+                      return (
+                        <details className="mt-2">
+                          <summary className="text-xs text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                            Insert field ID
+                          </summary>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {numericFields.map((f) => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                disabled={!isEditable || !!previewVersion}
+                                onClick={() => {
+                                  if (!isEditable || previewVersion) return;
+                                  const current = editingField.expression ?? "";
+                                  updateEditingField({ expression: current ? `${current} ${f.id}` : f.id });
+                                }}
+                                className="px-2 py-0.5 rounded bg-gray-100 hover:bg-brand-100 text-xs text-gray-600 hover:text-brand-700 disabled:opacity-50 disabled:cursor-default transition-colors"
+                                title={`Type: ${f.type}`}
+                              >
+                                {f.label || f.id}
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -1230,9 +1395,9 @@ export default function FormBuilderPage() {
                               updateEditingField({ options: opts });
                             }}
                             disabled={!isEditable || !!previewVersion || (editingField.options?.length ?? 0) <= 1}
-                            className="text-red-400 hover:text-red-600 disabled:opacity-30 text-lg leading-none"
+                            className="p-1 text-red-400 hover:text-red-600 disabled:opacity-30"
                           >
-                            &times;
+                            <X size={14} />
                           </button>
                           </div>
                           <p className="text-xs font-mono text-gray-400 pl-1">id: {opt.value}</p>
@@ -1356,9 +1521,9 @@ export default function FormBuilderPage() {
                               updateEditingField({ options: opts });
                             }}
                             disabled={!isEditable || !!previewVersion || (editingField.options?.length ?? 0) <= 1}
-                            className="text-red-400 hover:text-red-600 disabled:opacity-30 text-lg leading-none"
+                            className="p-1 text-red-400 hover:text-red-600 disabled:opacity-30"
                           >
-                            &times;
+                            <X size={14} />
                           </button>
                           </div>
                           <p className="text-xs font-mono text-gray-400 pl-1">id: {opt.value}</p>
@@ -1521,11 +1686,23 @@ export default function FormBuilderPage() {
                   </div>
                 )}
 
-                {/* Field ID (read-only info) */}
+                {/* Field ID — editable */}
                 <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-400">
-                    Field ID: <code className="font-mono">{editingField.id}</code>
-                  </p>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    Field ID
+                  </label>
+                  <input
+                    type="text"
+                    value={editingField.id}
+                    onChange={(e) => {
+                      if (!isEditable || previewVersion) return;
+                      const val = e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase();
+                      updateEditingField({ id: val });
+                    }}
+                    disabled={!isEditable || !!previewVersion}
+                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs font-mono text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Used in relevance expressions.</p>
                 </div>
               </div>
             )}

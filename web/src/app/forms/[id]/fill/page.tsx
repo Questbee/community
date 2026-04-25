@@ -34,6 +34,7 @@ interface FormField {
   button_label?: string;
   min_count?: number;
   max_count?: number;
+  other_text_label?: string;
 }
 
 interface FormSchema {
@@ -133,7 +134,7 @@ function FieldLabel({ field }: { field: FormField }) {
 function TextField({ field, value, onChange }: { field: FormField; value: any; onChange: (v: any) => void }) {
   const multiline = field.type === "textarea";
   const isReadOnly = field.read_only;
-  const base = "w-full border rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 transition";
+  const base = "w-full border rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 transition";
   const cls = isReadOnly ? `${base} bg-gray-50 border-gray-200 text-gray-500 cursor-default` : `${base} bg-white border-gray-300`;
 
   const isDateType = field.type === "date" || field.type === "time" || field.type === "datetime";
@@ -154,7 +155,7 @@ function TextField({ field, value, onChange }: { field: FormField; value: any; o
     : "text";
 
   return (
-    <div className="mb-5">
+    <div id={`field-${field.id}`} className="mb-5">
       <FieldLabel field={field} />
       {multiline ? (
         <textarea className={`${cls} resize-none`} rows={4} value={value ?? ""} onChange={(e) => onChange(e.target.value)} readOnly={isReadOnly} />
@@ -187,7 +188,7 @@ function TimestampField({ field, value, onChange }: { field: FormField; value: a
   const display = value ? new Date(value).toLocaleString() : "—";
 
   return (
-    <div className="mb-5">
+    <div id={`field-${field.id}`} className="mb-5">
       <FieldLabel field={field} />
       <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-3 py-2.5 bg-gray-50">
         <span className="text-sm text-gray-700 flex-1">{display}</span>
@@ -207,12 +208,12 @@ function TimestampField({ field, value, onChange }: { field: FormField; value: a
 
 function SelectOneField({ field, value, onChange }: { field: FormField; value: any; onChange: (v: any) => void }) {
   return (
-    <div className="mb-5">
+    <div id={`field-${field.id}`} className="mb-5">
       <FieldLabel field={field} />
       <div className="space-y-2">
         {(field.options ?? []).map((opt) => (
-          <label key={opt.value} className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition ${value === opt.value ? "border-amber-400 bg-amber-50" : "border-gray-200 hover:border-gray-300"}`}>
-            <input type="radio" name={field.id} value={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} className="accent-amber-500" />
+          <label key={opt.value} className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition ${value === opt.value ? "border-brand-400 bg-brand-50" : "border-gray-200 hover:border-gray-300"}`}>
+            <input type="radio" name={field.id} value={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} className="accent-brand-600" />
             <span className="text-sm text-gray-700">{opt.label}</span>
           </label>
         ))}
@@ -227,18 +228,66 @@ function SelectMultipleField({ field, value, onChange }: { field: FormField; val
     onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
   }
   return (
-    <div className="mb-5">
+    <div id={`field-${field.id}`} className="mb-5">
       <FieldLabel field={field} />
       <div className="space-y-2">
         {(field.options ?? []).map((opt) => {
           const checked = selected.includes(opt.value);
           return (
-            <label key={opt.value} className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition ${checked ? "border-amber-400 bg-amber-50" : "border-gray-200 hover:border-gray-300"}`}>
-              <input type="checkbox" value={opt.value} checked={checked} onChange={() => toggle(opt.value)} className="accent-amber-500 rounded" />
+            <label key={opt.value} className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition ${checked ? "border-brand-400 bg-brand-50" : "border-gray-200 hover:border-gray-300"}`}>
+              <input type="checkbox" value={opt.value} checked={checked} onChange={() => toggle(opt.value)} className="accent-brand-600 rounded" />
               <span className="text-sm text-gray-700">{opt.label}</span>
             </label>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function SelectOneOtherField({ field, value, onChange }: { field: FormField; value: any; onChange: (v: any) => void }) {
+  const selected = typeof value === "object" && value !== null ? value.choice : value;
+  const otherText = typeof value === "object" && value !== null ? (value.other ?? "") : "";
+  const isOther = selected === "__other__";
+
+  function pickChoice(choice: string) {
+    onChange(choice === "__other__" ? { choice: "__other__", other: otherText } : choice);
+  }
+
+  return (
+    <div id={`field-${field.id}`} className="mb-5">
+      <FieldLabel field={field} />
+      <div className="space-y-2">
+        {(field.options ?? []).map((opt) => (
+          <label key={opt.value} className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition ${selected === opt.value ? "border-brand-400 bg-brand-50" : "border-gray-200 hover:border-gray-300"}`}>
+            <input type="radio" name={field.id} value={opt.value} checked={selected === opt.value} onChange={() => pickChoice(opt.value)} className="accent-brand-500" />
+            <span className="text-sm text-gray-700">{opt.label}</span>
+          </label>
+        ))}
+        <label className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition ${isOther ? "border-brand-400 bg-brand-50" : "border-gray-200 hover:border-gray-300"}`}>
+          <input type="radio" name={field.id} value="__other__" checked={isOther} onChange={() => pickChoice("__other__")} className="accent-brand-500" />
+          <span className="text-sm text-gray-700">{field.other_text_label ?? "Other (please specify)"}</span>
+        </label>
+        {isOther && (
+          <input
+            type="text"
+            value={otherText}
+            onChange={(e) => onChange({ choice: "__other__", other: e.target.value })}
+            placeholder="Please specify…"
+            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 transition"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MobileOnlyField({ field, label }: { field: FormField; label: string }) {
+  return (
+    <div id={`field-${field.id}`} className="mb-5">
+      <FieldLabel field={field} />
+      <div className="flex items-center gap-3 border border-dashed border-gray-300 rounded-xl px-4 py-3 bg-gray-50 text-sm text-gray-400">
+        <span>{label} — available in the mobile app</span>
       </div>
     </div>
   );
@@ -275,7 +324,16 @@ function RenderFields({
         if (field.type === "note") return <NoteField key={field.id} field={field} />;
         if (field.type === "select_one") return <SelectOneField key={field.id} field={field} value={values[field.id]} onChange={(v) => setVal(field.id, v)} />;
         if (field.type === "select_multiple") return <SelectMultipleField key={field.id} field={field} value={values[field.id]} onChange={(v) => setVal(field.id, v)} />;
+        if (field.type === "select_one_other") return <SelectOneOtherField key={field.id} field={field} value={values[field.id]} onChange={(v) => setVal(field.id, v)} />;
         if (field.type === "timestamp") return <TimestampField key={field.id} field={field} value={values[field.id]} onChange={(v) => setVal(field.id, v)} />;
+        if (field.type === "photo") return <MobileOnlyField key={field.id} field={field} label="Photo capture" />;
+        if (field.type === "audio") return <MobileOnlyField key={field.id} field={field} label="Audio recording" />;
+        if (field.type === "signature") return <MobileOnlyField key={field.id} field={field} label="Signature" />;
+        if (field.type === "file") return <MobileOnlyField key={field.id} field={field} label="File upload" />;
+        if (field.type === "geopoint") return <MobileOnlyField key={field.id} field={field} label="GPS point" />;
+        if (field.type === "geotrace") return <MobileOnlyField key={field.id} field={field} label="GPS trace" />;
+        if (field.type === "route") return <MobileOnlyField key={field.id} field={field} label="Route tracking" />;
+        if (field.type === "barcode") return <MobileOnlyField key={field.id} field={field} label="Barcode / QR scan" />;
 
         if (field.type === "group") {
           const gv = values[field.id] ?? {};
@@ -338,6 +396,7 @@ function FillPageInner() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missingFields, setMissingFields] = useState<FormField[]>([]);
   const [formVersionId, setFormVersionId] = useState<string>("");
 
   useEffect(() => {
@@ -367,9 +426,12 @@ function FillPageInner() {
     if (!schema) return;
     const missing = collectMissing(schema.fields, values, values);
     if (missing.length > 0) {
-      setError(`Missing required fields: ${missing.map((f) => f.label ?? f.id).join(", ")}`);
+      setMissingFields(missing);
+      setError("Please fill in all required fields:");
+      document.getElementById(`field-${missing[0].id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    setMissingFields([]);
     setError(null);
     setSubmitting(true);
     try {
@@ -407,23 +469,58 @@ function FillPageInner() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-center max-w-sm w-full">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-1">Response submitted</h2>
-          <p className="text-gray-500 text-sm">Thank you. Your response has been recorded.</p>
+          <p className="text-gray-500 text-sm mb-6">Thank you. Your response has been recorded.</p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                setSubmitted(false);
+                setValues(schema ? collectDefaults(schema.fields) : {});
+                setError(null);
+                setMissingFields([]);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+            >
+              Submit another response
+            </button>
+            <button
+              onClick={() => window.history.back()}
+              className="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-xl transition-colors text-sm"
+            >
+              Go back
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const visibleRequired = (schema?.fields ?? []).filter(
-    (f) => f.required && f.type !== "calculated" && evaluateRelevant(f.relevant, values),
-  );
+  function collectVisibleRequired(fields: FormField[], vals: FormValues, allVals: FormValues): FormField[] {
+    const result: FormField[] = [];
+    for (const f of fields) {
+      if (!evaluateRelevant(f.relevant, allVals)) continue;
+      if (f.type === "group") {
+        const gv = vals[f.id] ?? {};
+        result.push(...collectVisibleRequired(f.fields ?? [], gv, { ...allVals, ...gv }));
+      } else if (f.type === "repeat") {
+        const rows: FormValues[] = Array.isArray(vals[f.id]) ? vals[f.id] : [];
+        for (const row of rows) result.push(...collectVisibleRequired(f.fields ?? [], row, row));
+      } else if (f.required && f.type !== "calculated") {
+        result.push(f);
+      }
+    }
+    return result;
+  }
+
+  const visibleRequired = collectVisibleRequired(schema?.fields ?? [], values, values);
   const filledRequired = visibleRequired.filter((f) => {
     const v = values[f.id];
     return Array.isArray(v) ? v.length > 0 : (v !== undefined && v !== null && v !== "");
@@ -461,7 +558,22 @@ function FillPageInner() {
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-              {error}
+              <p className="font-semibold">{error}</p>
+              {missingFields.length > 0 && (
+                <ul className="mt-2 list-disc list-inside space-y-0.5">
+                  {missingFields.map((f) => (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById(`field-${f.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                        className="underline hover:no-underline"
+                      >
+                        {f.label ?? f.id}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
