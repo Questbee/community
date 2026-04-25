@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, TriangleAlert, Upload, Download, Save, Send, CheckCircle2, PencilLine, Lock, ChevronUp, ChevronDown, X, Copy, Search, ChevronRight } from "lucide-react";
+import { ArrowLeft, TriangleAlert, Upload, Download, Save, Send, CheckCircle2, PencilLine, Lock, ChevronUp, ChevronDown, X, Copy, Search, ChevronRight, Smartphone } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Spinner from "@/components/Spinner";
 import FieldIcon from "@/components/FieldIcon";
@@ -203,6 +203,7 @@ export default function FormBuilderPage() {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   // isPublished — the form has a live published version (current_version_id)
   const [isPublished, setIsPublished] = useState(false);
+  const [justPublished, setJustPublished] = useState(false);
   // hasDraft — a draft_version_id exists alongside the published version
   const [hasDraft, setHasDraft] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -447,6 +448,7 @@ export default function FormBuilderPage() {
       setIsPublished(true);
       setHasDraft(false);
       setPreviewVersion(null);
+      setJustPublished(true);
       toast("Form published.");
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
@@ -684,6 +686,37 @@ export default function FormBuilderPage() {
               <strong>{currentVersionSubmissions}</strong> submission{currentVersionSubmissions !== 1 ? "s" : ""}.
               Existing submissions are preserved.
             </span>
+          </div>
+        )}
+
+        {/* Post-publish app download banner */}
+        {justPublished && !previewVersion && (
+          <div className="bg-brand-600 px-6 py-3 flex items-center justify-between gap-4 text-white flex-shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <Smartphone size={17} className="text-brand-200 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Your form is live! Next: collect data on your phone.</p>
+                <p className="text-xs text-brand-200 mt-0.5">Download the Questbee app, pair your device in Settings, and start filling this form.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <a
+                href="https://github.com/Questbee/community/releases/latest"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-brand-700 text-xs font-semibold rounded-lg hover:bg-brand-50 transition-colors"
+              >
+                <Download size={13} />
+                Get the App
+              </a>
+              <button
+                onClick={() => setJustPublished(false)}
+                className="p-1 text-brand-300 hover:text-white transition-colors"
+                aria-label="Dismiss"
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
         )}
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Inbox, Users, Key, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Inbox, Users, Key, Settings, LogOut, Smartphone } from "lucide-react";
 import api, { clearAuthCookies } from "@/lib/api";
 
 const NAV_LINKS = [
@@ -57,8 +57,15 @@ export default function NavSidebar() {
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="px-3 py-4 border-t border-gray-200">
+      {/* Get the App + Logout */}
+      <div className="px-3 py-4 border-t border-gray-200 space-y-1">
+        <a
+          href="/settings"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-brand-600 hover:bg-brand-50 transition-colors"
+        >
+          <Smartphone size={16} strokeWidth={2} className="flex-shrink-0" />
+          Get the App
+        </a>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
