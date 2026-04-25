@@ -168,7 +168,7 @@ export default function SettingsPage() {
               Download APK for Android
             </a>
             <p className="text-xs text-brand-200 mt-2">
-              Android 8.0+ required · Enable "Install from unknown sources" before installing
+              Android 8.0+ required · Enable &ldquo;Install from unknown sources&rdquo; before installing
             </p>
           </div>
         </section>
