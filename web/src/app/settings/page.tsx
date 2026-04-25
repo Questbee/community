@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Settings, Smartphone, Monitor, User } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
+import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface CurrentUser {
@@ -23,6 +25,7 @@ interface Device {
 }
 
 export default function SettingsPage() {
+  const { toast } = useToast();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [pairingToken, setPairingToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
@@ -34,6 +37,8 @@ export default function SettingsPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<Device | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   function loadDevices() {
     setDevicesLoading(true);
@@ -45,7 +50,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api.get("/auth/me").then((res) => setCurrentUser(res.data)).catch(() => {});
-    // Load the tenant-wide default server URL saved by an admin.
     api.get("/settings/mobile/server-url")
       .then((res) => {
         const url = res.data.server_url || "http://localhost:8000";
@@ -76,8 +80,9 @@ export default function SettingsPage() {
     try {
       await api.put("/settings/mobile/server-url", { server_url: serverUrl.trim() });
       setSavedUrl(serverUrl.trim());
+      toast("Default URL saved.");
     } catch {
-      alert("Failed to save default URL.");
+      toast("Failed to save default URL.", "error");
     } finally {
       setSaving(false);
     }
@@ -91,20 +96,23 @@ export default function SettingsPage() {
       setExpiresAt(new Date(res.data.expires_at));
       setSecondsLeft(600);
     } catch {
-      alert("Failed to generate pairing token.");
+      toast("Failed to generate pairing token.", "error");
     } finally {
       setGenerating(false);
     }
   }
 
-  async function handleRevokeDevice(deviceId: string) {
-    if (!confirm("Revoke this device? It will no longer be able to sync.")) return;
-    setRevoking(deviceId);
+  async function handleRevokeDevice() {
+    if (!revokeTarget) return;
+    setRevoking(revokeTarget.id);
+    setRevokeError(null);
     try {
-      await api.delete(`/settings/mobile/devices/${deviceId}`);
-      setDevices((prev) => prev.filter((d) => d.id !== deviceId));
+      await api.delete(`/settings/mobile/devices/${revokeTarget.id}`);
+      setDevices((prev) => prev.filter((d) => d.id !== revokeTarget.id));
+      toast("Device revoked.");
+      setRevokeTarget(null);
     } catch {
-      alert("Failed to revoke device.");
+      setRevokeError("Failed to revoke device.");
     } finally {
       setRevoking(null);
     }
@@ -251,7 +259,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => handleRevokeDevice(device.id)}
+                    onClick={() => { setRevokeTarget(device); setRevokeError(null); }}
                     disabled={revoking === device.id}
                     className="flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
                   >
@@ -285,6 +293,37 @@ export default function SettingsPage() {
           )}
         </section>
       </main>
+
+      {/* Revoke device confirmation modal */}
+      <Modal
+        open={!!revokeTarget}
+        onClose={() => { setRevokeTarget(null); setRevokeError(null); }}
+        title="Revoke device?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Revoke <strong>{revokeTarget?.label ?? "this device"}</strong>? It will no longer be able to sync with this server.
+          </p>
+          {revokeError && <p className="text-sm text-red-600">{revokeError}</p>}
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => { setRevokeTarget(null); setRevokeError(null); }}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!!revoking}
+              onClick={handleRevokeDevice}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-40"
+            >
+              {revoking ? "Revoking…" : "Revoke"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

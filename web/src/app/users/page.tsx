@@ -5,6 +5,7 @@ import { Users, UserPlus } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface User {
@@ -16,12 +17,19 @@ interface User {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-red-100 text-red-700",
-  manager: "bg-blue-100 text-blue-700",
+  admin:        "bg-red-100 text-red-700",
+  manager:      "bg-blue-100 text-blue-700",
   field_worker: "bg-gray-100 text-gray-700",
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  admin:        "Admin",
+  manager:      "Manager",
+  field_worker: "Field Worker",
+};
+
 export default function UsersPage() {
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +39,9 @@ export default function UsersPage() {
   const [newRole, setNewRole] = useState<"admin" | "manager" | "field_worker">("field_worker");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<User | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
 
   async function loadUsers() {
     setLoading(true);
@@ -59,6 +70,7 @@ export default function UsersPage() {
       setNewEmail("");
       setNewPassword("");
       setNewRole("field_worker");
+      toast("User created.");
       await loadUsers();
     } catch (err: any) {
       setCreateError(err?.response?.data?.detail ?? "Failed to create user.");
@@ -67,13 +79,19 @@ export default function UsersPage() {
     }
   }
 
-  async function handleDeactivate(userId: string, email: string) {
-    if (!confirm(`Deactivate ${email}?`)) return;
+  async function handleDeactivate() {
+    if (!deactivateTarget) return;
+    setDeactivating(true);
+    setDeactivateError(null);
     try {
-      await api.delete(`/users/${userId}`);
+      await api.delete(`/users/${deactivateTarget.id}`);
+      toast(`${deactivateTarget.email} deactivated.`);
+      setDeactivateTarget(null);
       await loadUsers();
     } catch (err: any) {
-      alert(err?.response?.data?.detail ?? "Failed to deactivate user.");
+      setDeactivateError(err?.response?.data?.detail ?? "Failed to deactivate user.");
+    } finally {
+      setDeactivating(false);
     }
   }
 
@@ -126,7 +144,7 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[user.role] ?? "bg-gray-100 text-gray-600"}`}>
-                        {user.role}
+                        {ROLE_LABELS[user.role] ?? user.role}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -137,7 +155,7 @@ export default function UsersPage() {
                     <td className="px-4 py-3 text-right">
                       {user.is_active && (
                         <button
-                          onClick={() => handleDeactivate(user.id, user.email)}
+                          onClick={() => { setDeactivateTarget(user); setDeactivateError(null); }}
                           className="text-xs text-red-500 hover:text-red-700 font-medium"
                         >
                           Deactivate
@@ -152,6 +170,38 @@ export default function UsersPage() {
         )}
       </main>
 
+      {/* Deactivate confirmation modal */}
+      <Modal
+        open={!!deactivateTarget}
+        onClose={() => { setDeactivateTarget(null); setDeactivateError(null); }}
+        title="Deactivate user?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Deactivate <strong>{deactivateTarget?.email}</strong>? They will no longer be able to log in.
+          </p>
+          {deactivateError && <p className="text-sm text-red-600">{deactivateError}</p>}
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => { setDeactivateTarget(null); setDeactivateError(null); }}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deactivating}
+              onClick={handleDeactivate}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-40"
+            >
+              {deactivating ? "Deactivating…" : "Deactivate"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add user modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add User">
         <form onSubmit={handleCreateUser} className="space-y-4">
           <div>

@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, TriangleAlert, Upload, Download, Save, Send, CheckCircle2, PencilLine, Lock } from "lucide-react";
+import { ArrowLeft, TriangleAlert, Upload, Download, Save, Send, CheckCircle2, PencilLine, Lock, ChevronUp, ChevronDown, X } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Spinner from "@/components/Spinner";
 import FieldIcon from "@/components/FieldIcon";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 import { evaluateRelevant } from "@/lib/relevant";
 
@@ -104,6 +105,20 @@ const FIELD_TYPES = [
   { type: "divider",          label: "Divider",        category: "display" },
 ];
 
+const FIELD_TYPE_LABEL = Object.fromEntries(FIELD_TYPES.map((f) => [f.type, f.label]));
+
+const FIELD_CATEGORIES: { label: string; types: string[] }[] = [
+  { label: "Basic",       types: ["text", "textarea", "number", "email", "phone"] },
+  { label: "Date & Time", types: ["date", "time", "datetime", "timestamp"] },
+  { label: "Choice",      types: ["select_one", "select_multiple", "select_one_other"] },
+  { label: "Location",    types: ["geopoint", "geotrace", "route"] },
+  { label: "Media",       types: ["photo", "audio", "signature", "file"] },
+  { label: "Scan",        types: ["barcode"] },
+  { label: "Structure",   types: ["group", "repeat"] },
+  { label: "Logic",       types: ["calculated"] },
+  { label: "Display",     types: ["note", "divider"] },
+];
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,6 +194,7 @@ export default function FormBuilderPage() {
   const [versions, setVersions] = useState<Array<{id: string; version_num: number; published_at: string | null; is_current: boolean; is_draft: boolean; submission_count: number}>>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [currentVersionSubmissions, setCurrentVersionSubmissions] = useState(0);
+  const [currentVersionNum, setCurrentVersionNum] = useState<number | null>(null);
   const [startingNewDraft, setStartingNewDraft] = useState(false);
   const [formName, setFormName] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -188,6 +204,7 @@ export default function FormBuilderPage() {
   const [activeGroupIdx, setActiveGroupIdx] = useState<number | null>(null);
   const [selectedNestedIdx, setSelectedNestedIdx] = useState<number | null>(null);
 
+  const { toast } = useToast();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -216,7 +233,10 @@ export default function FormBuilderPage() {
         try {
           const versRes = await api.get(`/forms/${formId}/versions`);
           const current = versRes.data.find((v: any) => v.is_current);
-          if (current) setCurrentVersionSubmissions(current.submission_count);
+          if (current) {
+            setCurrentVersionSubmissions(current.submission_count);
+            setCurrentVersionNum(current.version_num);
+          }
         } catch {
           // non-blocking
         }
@@ -349,7 +369,7 @@ export default function FormBuilderPage() {
       await api.put(`/forms/${formId}`, { schema_json: schema });
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
-      alert(Array.isArray(detail) ? detail.join("\n") : detail ?? "Save failed.");
+      toast(Array.isArray(detail) ? detail.join(" ") : detail ?? "Save failed.", "error");
     } finally {
       setSaving(false);
     }
@@ -367,7 +387,7 @@ export default function FormBuilderPage() {
       setLeftTab("fields");
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
-      alert(Array.isArray(detail) ? detail.join("\n") : detail ?? "Failed to start new draft.");
+      toast(Array.isArray(detail) ? detail.join(" ") : detail ?? "Failed to start new draft.", "error");
     } finally {
       setStartingNewDraft(false);
     }
@@ -383,9 +403,10 @@ export default function FormBuilderPage() {
       setIsPublished(true);
       setHasDraft(false);
       setPreviewVersion(null);
+      toast("Form published.");
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
-      alert(Array.isArray(detail) ? detail.join("\n") : detail ?? "Publish failed.");
+      toast(Array.isArray(detail) ? detail.join(" ") : detail ?? "Publish failed.", "error");
     } finally {
       setPublishing(false);
     }
@@ -406,7 +427,7 @@ export default function FormBuilderPage() {
       const res = await api.get(`/forms/${formId}/versions/${versionId}`);
       handleExportSchema(res.data.schema_json, `v${versionNum}`);
     } catch {
-      alert("Failed to download schema.");
+      toast("Failed to download schema.", "error");
     }
   }
 
@@ -472,14 +493,19 @@ export default function FormBuilderPage() {
             >
               <ArrowLeft size={18} />
             </button>
-            <input
-              type="text"
-              value={schema.title}
-              onChange={(e) => isEditable && !previewVersion && setSchema((prev) => ({ ...prev, title: e.target.value }))}
-              disabled={!isEditable || !!previewVersion}
-              className="text-lg font-semibold text-gray-900 border-0 focus:outline-none focus:ring-0 bg-transparent disabled:cursor-default"
-              placeholder="Form title"
-            />
+            <div className="flex items-center gap-1.5 group/title">
+              <input
+                type="text"
+                value={schema.title}
+                onChange={(e) => isEditable && !previewVersion && setSchema((prev) => ({ ...prev, title: e.target.value }))}
+                disabled={!isEditable || !!previewVersion}
+                className="text-lg font-semibold text-gray-900 border-0 focus:outline-none focus:ring-0 bg-transparent disabled:cursor-default min-w-0"
+                placeholder="Form title"
+              />
+              {isEditable && !previewVersion && (
+                <PencilLine size={14} className="text-gray-400 flex-shrink-0 opacity-0 group-hover/title:opacity-100 transition-opacity" />
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {saving && <span className="text-xs text-gray-400 mr-1">Saving…</span>}
@@ -600,7 +626,7 @@ export default function FormBuilderPage() {
           <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-2 text-sm text-amber-800">
             <TriangleAlert size={15} className="flex-shrink-0" />
             <span>
-              Publishing will replace v{currentVersionSubmissions} — the current live version with{" "}
+              Publishing will replace{currentVersionNum !== null ? ` v${currentVersionNum}` : " the current live version"} — it has{" "}
               <strong>{currentVersionSubmissions}</strong> submission{currentVersionSubmissions !== 1 ? "s" : ""}.
               Existing submissions are preserved.
             </span>
@@ -653,23 +679,30 @@ export default function FormBuilderPage() {
                   </div>
                 )}
                 <div className="p-3 overflow-y-auto flex-1">
-                  <div className="space-y-1">
-                    {FIELD_TYPES.map(({ type, label }) => {
-                      const disabledInGroup = activeGroupIdx !== null && (type === "group" || type === "repeat");
-                      return (
-                        <button
-                          key={type}
-                          onClick={() => addField(type)}
-                          disabled={!isEditable || !!previewVersion || disabledInGroup}
-                          title={disabledInGroup ? "Cannot nest groups or repeats" : undefined}
-                          className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-                        >
-                          <FieldIcon type={type} />
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {FIELD_CATEGORIES.map(({ label: catLabel, types }, catIdx) => (
+                    <div key={catLabel}>
+                      <p className={`px-1 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide ${catIdx > 0 ? "pt-3" : "pt-1"}`}>
+                        {catLabel}
+                      </p>
+                      <div className="space-y-0.5">
+                        {types.map((type) => {
+                          const disabledInGroup = activeGroupIdx !== null && (type === "group" || type === "repeat");
+                          return (
+                            <button
+                              key={type}
+                              onClick={() => addField(type)}
+                              disabled={!isEditable || !!previewVersion || disabledInGroup}
+                              title={disabledInGroup ? "Cannot nest groups or repeats" : undefined}
+                              className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                            >
+                              <FieldIcon type={type} />
+                              {FIELD_TYPE_LABEL[type] ?? type}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </>
             ) : (
@@ -836,23 +869,26 @@ export default function FormBuilderPage() {
                           <button
                             onClick={(e) => { e.stopPropagation(); moveField(idx, -1); }}
                             disabled={idx === 0 || !isEditable || !!previewVersion}
+                            aria-label="Move up"
                             className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                           >
-                            &#8593;
+                            <ChevronUp size={14} />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); moveField(idx, 1); }}
                             disabled={idx === displayFields.length - 1 || !isEditable || !!previewVersion}
+                            aria-label="Move down"
                             className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                           >
-                            &#8595;
+                            <ChevronDown size={14} />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteField(idx); }}
                             disabled={!isEditable || !!previewVersion}
+                            aria-label="Delete field"
                             className="p-1 text-red-400 hover:text-red-600 disabled:opacity-30"
                           >
-                            &times;
+                            <X size={14} />
                           </button>
                         </div>
                       </div>
@@ -885,18 +921,21 @@ export default function FormBuilderPage() {
                                     <button
                                       onClick={(e) => { e.stopPropagation(); moveNestedField(idx, nIdx, -1); }}
                                       disabled={nIdx === 0 || !isEditable || !!previewVersion}
+                                      aria-label="Move up"
                                       className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                                    >&#8593;</button>
+                                    ><ChevronUp size={13} /></button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); moveNestedField(idx, nIdx, 1); }}
                                       disabled={nIdx === (field.fields?.length ?? 0) - 1 || !isEditable || !!previewVersion}
+                                      aria-label="Move down"
                                       className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                                    >&#8595;</button>
+                                    ><ChevronDown size={13} /></button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); deleteNestedField(idx, nIdx); }}
                                       disabled={!isEditable || !!previewVersion}
+                                      aria-label="Delete field"
                                       className="p-0.5 text-red-400 hover:text-red-600 disabled:opacity-30"
-                                    >&times;</button>
+                                    ><X size={13} /></button>
                                   </div>
                                 </div>
                               ))}

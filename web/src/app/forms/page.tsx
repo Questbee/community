@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Plus, ArrowLeft, Trash2 } from "lucide-react";
+import { FileText, Plus, ArrowLeft, Trash2, Inbox } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface Form {
@@ -21,10 +22,12 @@ function FormsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get("project_id");
+  const { toast } = useToast();
 
   const [forms, setForms] = useState<Form[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -50,7 +53,15 @@ function FormsContent() {
   useEffect(() => {
     loadForms();
     api.get("/auth/me").then((res) => setIsAdmin(res.data.role === "admin")).catch(() => {});
-  }, [loadForms]);
+    if (projectId) {
+      api.get("/projects")
+        .then((res) => {
+          const p = res.data.find((proj: { id: string; name: string }) => proj.id === projectId);
+          if (p) setProjectName(p.name);
+        })
+        .catch(() => {});
+    }
+  }, [loadForms, projectId]);
 
   async function handleDeleteForm() {
     if (!deleteTarget) return;
@@ -60,6 +71,7 @@ function FormsContent() {
       setForms((prev) => prev.filter((f) => f.id !== deleteTarget.id));
       setDeleteTarget(null);
       setDeleteConfirm("");
+      toast("Form deleted.");
     } catch {
       // keep modal open
     } finally {
@@ -104,7 +116,12 @@ function FormsContent() {
             <span className="p-2 bg-brand-100 rounded-xl">
               <FileText size={20} className="text-brand-700" />
             </span>
-            <h1 className="text-2xl font-bold text-gray-900">Forms</h1>
+            <div>
+              {projectId && projectName && (
+                <p className="text-xs text-gray-400 font-medium -mb-0.5">{projectName}</p>
+              )}
+              <h1 className="text-2xl font-bold text-gray-900">Forms</h1>
+            </div>
           </div>
           {projectId && (
             <button
@@ -152,10 +169,17 @@ function FormsContent() {
                     <p className="text-xs text-gray-400 pl-8">v{form.version_num}</p>
                   )}
                 </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); router.push(`/submissions?form_id=${form.id}`); }}
+                  className="px-2.5 text-gray-300 hover:text-brand-500 hover:bg-brand-50 border-l border-gray-100 transition-colors flex-shrink-0 opacity-60 sm:opacity-0 sm:group-hover:opacity-100"
+                  title="View submissions"
+                >
+                  <Inbox size={14} />
+                </button>
                 {isAdmin && (
                   <button
                     onClick={() => { setDeleteTarget(form); setDeleteConfirm(""); }}
-                    className="px-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-r-xl border-l border-gray-100 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                    className="px-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-r-xl border-l border-gray-100 transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 flex-shrink-0"
                     title="Delete form"
                   >
                     <Trash2 size={14} />

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { Key, Plus } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
+import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface ApiKey {
@@ -15,12 +17,15 @@ interface ApiKey {
 }
 
 export default function ApiKeysPage() {
+  const { toast } = useToast();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   async function loadKeys() {
     setLoading(true);
@@ -46,6 +51,7 @@ export default function ApiKeysPage() {
     try {
       const res = await api.post("/api-keys/", { scopes: [] });
       setNewKey(res.data.key);
+      toast("API key created.");
       await loadKeys();
     } catch {
       setError("Failed to create API key.");
@@ -54,16 +60,19 @@ export default function ApiKeysPage() {
     }
   }
 
-  async function handleRevoke(id: string) {
-    if (!confirm("Revoke this API key? This cannot be undone.")) return;
-    setRevoking(id);
+  async function handleRevoke() {
+    if (!revokeTarget) return;
+    setRevoking(true);
+    setRevokeError(null);
     try {
-      await api.delete(`/api-keys/${id}`);
+      await api.delete(`/api-keys/${revokeTarget.id}`);
+      toast("API key revoked.");
+      setRevokeTarget(null);
       await loadKeys();
     } catch {
-      setError("Failed to revoke key.");
+      setRevokeError("Failed to revoke key.");
     } finally {
-      setRevoking(null);
+      setRevoking(false);
     }
   }
 
@@ -111,7 +120,7 @@ export default function ApiKeysPage() {
                 {newKey}
               </code>
               <button
-                onClick={() => { navigator.clipboard.writeText(newKey); }}
+                onClick={() => { navigator.clipboard.writeText(newKey); toast("Copied to clipboard."); }}
                 className="px-3 py-2 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 rounded font-medium transition-colors"
               >
                 Copy
@@ -160,11 +169,10 @@ export default function ApiKeysPage() {
                     <>
                       <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">Active</span>
                       <button
-                        onClick={() => handleRevoke(k.id)}
-                        disabled={revoking === k.id}
-                        className="text-sm text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
+                        onClick={() => { setRevokeTarget(k); setRevokeError(null); }}
+                        className="text-sm text-red-500 hover:text-red-700 font-medium"
                       >
-                        {revoking === k.id ? "Revoking…" : "Revoke"}
+                        Revoke
                       </button>
                     </>
                   )}
@@ -183,6 +191,37 @@ export default function ApiKeysPage() {
           <p className="ml-4">-d {"'"}{"{"}&quot;form_id&quot;: &quot;...&quot;, &quot;data_json&quot;: {"{"}&quot;field_id&quot;: &quot;value&quot;{"}"}{"}"}{"'"}</p>
         </div>
       </main>
+
+      {/* Revoke confirmation modal */}
+      <Modal
+        open={!!revokeTarget}
+        onClose={() => { setRevokeTarget(null); setRevokeError(null); }}
+        title="Revoke API key?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Revoke key <code className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">{revokeTarget?.id.slice(0, 8)}…</code>? Any system using it will immediately lose access.
+          </p>
+          {revokeError && <p className="text-sm text-red-600">{revokeError}</p>}
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => { setRevokeTarget(null); setRevokeError(null); }}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={revoking}
+              onClick={handleRevoke}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-40"
+            >
+              {revoking ? "Revoking…" : "Revoke"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

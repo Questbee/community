@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Inbox, Download } from "lucide-react";
+import { Inbox, Download, ChevronRight } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Spinner from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface FieldOption {
@@ -44,10 +45,6 @@ interface MediaFileMeta {
   size_bytes: number;
 }
 
-/**
- * Fetches a media file from the server (authenticated) and renders it
- * inline: image/audio tag or a download link for other types.
- */
 function MediaPreview({ media }: { media: MediaFileMeta }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,15 +96,6 @@ function MediaPreview({ media }: { media: MediaFileMeta }) {
   );
 }
 
-/**
- * Resolve a raw submission value to a human-readable string using the field's
- * schema definition.
- *
- *   - select_one      → option label (falls back to raw value if not found)
- *   - select_multiple → comma-joined option labels
- *   - arrays          → comma-joined string values
- *   - everything else → string representation
- */
 function formatFieldValue(field: SchemaField, rawValue: unknown): string {
   if (rawValue === undefined || rawValue === null || rawValue === "") return "—";
 
@@ -159,6 +147,7 @@ function formatFieldValue(field: SchemaField, rawValue: unknown): string {
 function SubmissionsContent() {
   const searchParams = useSearchParams();
   const formId = searchParams.get("form_id");
+  const { toast } = useToast();
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -173,6 +162,7 @@ function SubmissionsContent() {
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [exportFormId, setExportFormId] = useState(formId ?? "");
   const [allForms, setAllForms] = useState<{ id: string; name: string }[]>([]);
 
@@ -209,6 +199,7 @@ function SubmissionsContent() {
 
   function openExportModal() {
     setExportFormId(formId ?? "");
+    setExportError(null);
     if (!formId && allForms.length === 0) {
       api.get("/forms").then((res) => setAllForms(res.data)).catch(() => {});
     }
@@ -218,6 +209,7 @@ function SubmissionsContent() {
   async function handleExport() {
     if (!exportFormId) return;
     setExporting(true);
+    setExportError(null);
     try {
       const params = new URLSearchParams({ form_id: exportFormId });
       if (exportFrom) params.set("from", exportFrom);
@@ -248,8 +240,9 @@ function SubmissionsContent() {
       link.remove();
       window.URL.revokeObjectURL(url);
       setExportOpen(false);
+      toast("Export downloaded.");
     } catch {
-      alert("Export failed.");
+      setExportError("Export failed. Please try again.");
     } finally {
       setExporting(false);
     }
@@ -338,17 +331,19 @@ function SubmissionsContent() {
                       value={exportFrom}
                       onChange={(e) => setExportFrom(e.target.value)}
                       className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      placeholder="From"
                     />
                     <input
                       type="date"
                       value={exportTo}
                       onChange={(e) => setExportTo(e.target.value)}
                       className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      placeholder="To"
                     />
                   </div>
                 </div>
+
+                {exportError && (
+                  <p className="text-sm text-red-600 mb-3">{exportError}</p>
+                )}
 
                 <div className="flex justify-end gap-2">
                   <button
@@ -385,11 +380,11 @@ function SubmissionsContent() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Form Version</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Form</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Collected At</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Submitted At</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Submitted By</th>
+                    <th className="px-4 py-3 w-8" />
                   </tr>
                 </thead>
                 <tbody>
@@ -401,8 +396,9 @@ function SubmissionsContent() {
                         selectedId === sub.id ? "bg-brand-50" : ""
                       }`}
                     >
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{sub.id.slice(0, 8)}</td>
-                      <td className="px-4 py-3 text-gray-700 font-mono text-xs">{sub.form_version_id.slice(0, 8)}</td>
+                      <td className="px-4 py-3 text-gray-800 font-medium">
+                        {sub.form_name ?? <span className="text-gray-400 font-mono text-xs">{sub.id.slice(0, 8)}</span>}
+                      </td>
                       <td className="px-4 py-3 text-gray-500">
                         {sub.collected_at ? new Date(sub.collected_at).toLocaleString() : "—"}
                       </td>
@@ -410,6 +406,9 @@ function SubmissionsContent() {
                         {new Date(sub.submitted_at).toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{sub.submitted_by_email ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-300">
+                        <ChevronRight size={14} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

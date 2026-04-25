@@ -6,6 +6,7 @@ import { LayoutDashboard, FolderOpen, Plus, Trash2 } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface Project {
@@ -18,9 +19,11 @@ interface Project {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [formCounts, setFormCounts] = useState<Record<string, number>>({});
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -44,8 +47,22 @@ export default function DashboardPage() {
     }
   }
 
+  async function loadFormCounts() {
+    try {
+      const res = await api.get("/forms");
+      const counts: Record<string, number> = {};
+      for (const form of res.data) {
+        counts[form.project_id] = (counts[form.project_id] ?? 0) + 1;
+      }
+      setFormCounts(counts);
+    } catch {
+      // non-blocking
+    }
+  }
+
   useEffect(() => {
     loadProjects();
+    loadFormCounts();
     api.get("/auth/me").then((res) => setIsAdmin(res.data.role === "admin")).catch(() => {});
   }, []);
 
@@ -58,6 +75,7 @@ export default function DashboardPage() {
       setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       setDeleteTarget(null);
       setDeleteConfirm("");
+      toast("Project deleted.");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setDeleteError(msg ?? "Failed to delete project.");
@@ -74,7 +92,8 @@ export default function DashboardPage() {
       setModalOpen(false);
       setNewName("");
       setNewDesc("");
-      await loadProjects();
+      toast("Project created.");
+      await Promise.all([loadProjects(), loadFormCounts()]);
     } catch {
       // keep modal open, user can retry
     } finally {
@@ -141,16 +160,23 @@ export default function DashboardPage() {
                   {project.description && (
                     <p className="text-sm text-gray-500 mb-2 line-clamp-2 pl-11">{project.description}</p>
                   )}
-                  {project.created_at && (
-                    <p className="text-xs text-gray-400 pl-11">
-                      {new Date(project.created_at).toLocaleDateString()}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-3 pl-11">
+                    {project.created_at && (
+                      <p className="text-xs text-gray-400">
+                        {new Date(project.created_at).toLocaleDateString()}
+                      </p>
+                    )}
+                    {formCounts[project.id] !== undefined && (
+                      <p className="text-xs text-gray-400">
+                        {formCounts[project.id]} form{formCounts[project.id] !== 1 ? "s" : ""}
+                      </p>
+                    )}
+                  </div>
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => { setDeleteTarget(project); setDeleteConfirm(""); setDeleteError(null); }}
-                    className="px-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-r-xl border-l border-gray-100 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                    className="px-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-r-xl border-l border-gray-100 transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 flex-shrink-0"
                     title="Delete project"
                   >
                     <Trash2 size={14} />
