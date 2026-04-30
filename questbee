@@ -1,0 +1,72 @@
+#!/bin/sh
+# Questbee CLI launcher (Mac / Linux)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ── Find Python ───────────────────────────────────────────────────────────────
+PYTHON=""
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON="python3"
+elif command -v python >/dev/null 2>&1; then
+  if python -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
+    PYTHON="python"
+  fi
+fi
+
+# ── If not found, offer to install ───────────────────────────────────────────
+if [ -z "$PYTHON" ]; then
+  echo ""
+  echo "Python 3 is required but was not found."
+  echo ""
+  printf "  Would you like to install it now? [Y/n] "
+  read REPLY
+  case "$REPLY" in
+    ""|y|Y|yes|Yes|YES)
+      OS="$(uname -s)"
+      case "$OS" in
+        Linux)
+          if command -v apt-get >/dev/null 2>&1; then
+            echo "  Installing Python 3 via apt..."
+            sudo apt-get install -y python3
+          elif command -v dnf >/dev/null 2>&1; then
+            echo "  Installing Python 3 via dnf..."
+            sudo dnf install -y python3
+          elif command -v yum >/dev/null 2>&1; then
+            echo "  Installing Python 3 via yum..."
+            sudo yum install -y python3
+          else
+            echo "  Could not detect a package manager."
+            echo "  Please install Python 3 from https://www.python.org/ and try again."
+            exit 1
+          fi
+          ;;
+        Darwin)
+          if command -v brew >/dev/null 2>&1; then
+            echo "  Installing Python 3 via Homebrew..."
+            brew install python3
+          else
+            echo "  Please download Python 3 from:"
+            echo "  https://www.python.org/downloads/macos/"
+            echo "  Then re-run: ./questbee"
+            exit 1
+          fi
+          ;;
+        *)
+          echo "  Please install Python 3 from https://www.python.org/ and try again."
+          exit 1
+          ;;
+      esac
+      if command -v python3 >/dev/null 2>&1; then
+        PYTHON="python3"
+      else
+        echo "  Installation may have succeeded — please open a new terminal and try again."
+        exit 1
+      fi
+      ;;
+    *)
+      echo "  Install Python 3 from https://www.python.org/ and try again."
+      exit 1
+      ;;
+  esac
+fi
+
+exec "$PYTHON" "$SCRIPT_DIR/questbee.py" "$@"
