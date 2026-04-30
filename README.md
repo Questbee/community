@@ -46,27 +46,36 @@ Text, textarea, number, email, phone, date, time, datetime, single choice, multi
 ```bash
 git clone https://github.com/Questbee/community.git
 cd community
-cp .env.example .env
+./questbee install
 ```
 
-Edit `.env` and set at minimum:
-- `DB_PASSWORD` — a strong random password
-- `SECRET_KEY` — a random 32+ character string (`python -c "import secrets; print(secrets.token_hex(32))"`)
+The setup wizard checks Docker, prompts for your admin email and password, generates strong random secrets, writes your `.env`, and starts all containers automatically.
 
-Then:
+> **Windows:** run `questbee install` from Command Prompt, or double-click `questbee.bat`.
 
-```bash
-docker compose up --build
-```
-
-Once ready (look for the banner in the logs):
+Once ready, open the dashboard:
 
 | Service | URL |
 |---|---|
 | Web dashboard | http://localhost:3000 |
 | API (Swagger docs) | http://localhost:8000/docs |
 
-Log in with the credentials from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in your `.env` (defaults: `admin@yourorg.com` / `changeme`). **Change the password on first login.**
+Log in with the credentials you entered during setup. **Change the password on first login.**
+
+### Day-to-day commands
+
+```
+./questbee start      # start the server
+./questbee stop       # stop the server
+./questbee restart    # restart after editing .env
+./questbee logs       # stream live logs
+./questbee status     # check container health
+./questbee update     # pull latest version and restart
+./questbee hostname   # print all URLs (useful for mobile pairing)
+./questbee help       # show all commands
+```
+
+Full reference: [docs/cli-reference](https://questbee.io/docs/cli-reference.html)
 
 ---
 
