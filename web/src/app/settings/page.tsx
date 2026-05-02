@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
-import { Settings, Smartphone, Monitor, User, Download } from "lucide-react";
+import { Settings, User, BookOpen, FileText, LifeBuoy, Heart, ExternalLink } from "lucide-react";
 import NavSidebar from "@/components/NavSidebar";
-import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
-import { useToast } from "@/components/Toast";
 import api from "@/lib/api";
 
 interface CurrentUser {
@@ -16,125 +13,15 @@ interface CurrentUser {
   tenant_id: string;
 }
 
-interface Device {
-  id: string;
-  label: string | null;
-  user_email: string | null;
-  created_at: string | null;
-  last_used_at: string | null;
-}
+const DOCS_BASE = "https://questbee.github.io/page/docs";
+const HOME_URL  = "https://questbee.github.io/page";
 
 export default function SettingsPage() {
-  const { toast } = useToast();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [pairingToken, setPairingToken] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState<number>(0);
-  const [generating, setGenerating] = useState(false);
-  const [serverUrl, setServerUrl] = useState("http://localhost:8000");
-  const [savedUrl, setSavedUrl] = useState("http://localhost:8000");
-  const [saving, setSaving] = useState(false);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [devicesLoading, setDevicesLoading] = useState(false);
-  const [revoking, setRevoking] = useState<string | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<Device | null>(null);
-  const [revokeError, setRevokeError] = useState<string | null>(null);
-
-  function loadDevices() {
-    setDevicesLoading(true);
-    api.get("/settings/mobile/devices")
-      .then((res) => setDevices(res.data))
-      .catch(() => {})
-      .finally(() => setDevicesLoading(false));
-  }
 
   useEffect(() => {
     api.get("/auth/me").then((res) => setCurrentUser(res.data)).catch(() => {});
-    api.get("/settings/mobile/server-url")
-      .then((res) => {
-        const url = res.data.server_url || "http://localhost:8000";
-        setServerUrl(url);
-        setSavedUrl(url);
-      })
-      .catch(() => {});
-    loadDevices();
   }, []);
-
-  // Countdown timer
-  useEffect(() => {
-    if (!expiresAt) return;
-    const interval = setInterval(() => {
-      const diff = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
-      setSecondsLeft(diff);
-      if (diff === 0) {
-        setPairingToken(null);
-        setExpiresAt(null);
-        clearInterval(interval);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [expiresAt]);
-
-  async function handleSaveDefaultUrl() {
-    setSaving(true);
-    try {
-      await api.put("/settings/mobile/server-url", { server_url: serverUrl.trim() });
-      setSavedUrl(serverUrl.trim());
-      toast("Default URL saved.");
-    } catch {
-      toast("Failed to save default URL.", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleGenerateToken() {
-    setGenerating(true);
-    try {
-      const res = await api.post("/settings/mobile/pairing-token");
-      setPairingToken(res.data.pairing_token);
-      setExpiresAt(new Date(res.data.expires_at));
-      setSecondsLeft(600);
-    } catch {
-      toast("Failed to generate pairing token.", "error");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  async function handleRevokeDevice() {
-    if (!revokeTarget) return;
-    setRevoking(revokeTarget.id);
-    setRevokeError(null);
-    try {
-      await api.delete(`/settings/mobile/devices/${revokeTarget.id}`);
-      setDevices((prev) => prev.filter((d) => d.id !== revokeTarget.id));
-      toast("Device revoked.");
-      setRevokeTarget(null);
-    } catch {
-      setRevokeError("Failed to revoke device.");
-    } finally {
-      setRevoking(null);
-    }
-  }
-
-  function formatDate(iso: string | null) {
-    if (!iso) return "Never";
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
-
-  const qrValue = pairingToken
-    ? JSON.stringify({
-        server_url: serverUrl.replace(/\/$/, ""),
-        pairing_token: pairingToken,
-      })
-    : "";
-
-  const minutes = Math.floor(secondsLeft / 60);
-  const seconds = secondsLeft % 60;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -148,156 +35,8 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         </div>
 
-        {/* Get the App */}
-        <section className="bg-brand-600 rounded-xl p-6 mb-6 text-white">
-          <div className="flex items-center gap-2.5 mb-1">
-            <Smartphone size={18} className="text-brand-200 flex-shrink-0" />
-            <h2 className="text-base font-semibold">Get the Questbee App</h2>
-          </div>
-          <p className="text-sm text-brand-100 mb-5 pl-7">
-            Install the Android app to collect form data in the field — online or offline. Sideload the APK directly from GitHub.
-          </p>
-          <div className="pl-7">
-            <a
-              href="https://github.com/Questbee/app/releases/latest"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-gray-900 text-sm font-semibold rounded-lg hover:bg-brand-50 transition-colors"
-            >
-              <Download size={15} />
-              Download APK for Android
-            </a>
-            <p className="text-xs text-brand-200 mt-2">
-              Android 8.0+ required · Enable &ldquo;Install from unknown sources&rdquo; before installing
-            </p>
-          </div>
-        </section>
-
-        {/* Mobile Pairing */}
-        <section className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-          <div className="flex items-center gap-2.5 mb-1">
-            <Smartphone size={17} className="text-brand-600 flex-shrink-0" />
-            <h2 className="text-base font-semibold text-gray-900">Mobile Pairing</h2>
-          </div>
-          <p className="text-sm text-gray-500 mb-4 pl-7">
-            Generate a QR code so a mobile device can pair with this server.
-          </p>
-
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Server URL (as reachable from the phone)
-            </label>
-            <input
-              type="text"
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="http://192.168.1.x:8000"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-xs text-gray-400">
-                Use your machine&apos;s local IP (e.g. 192.168.x.x) so the phone can reach the server over Wi-Fi.
-              </p>
-              {currentUser?.role === "admin" && (
-                <button
-                  onClick={handleSaveDefaultUrl}
-                  disabled={saving || serverUrl.trim() === savedUrl}
-                  className="ml-3 px-3 py-1 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors whitespace-nowrap"
-                >
-                  {saving ? "Saving…" : serverUrl.trim() === savedUrl ? "Saved" : "Save as default"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {pairingToken ? (
-            <div className="flex flex-col items-center gap-4">
-              <div className="p-4 bg-white border border-gray-200 rounded-xl">
-                <QRCodeSVG value={qrValue} size={200} />
-              </div>
-              <p className="text-xs text-gray-400 font-mono">{serverUrl}</p>
-              <p className="text-sm text-gray-600">
-                Expires in{" "}
-                <span className={`font-semibold ${secondsLeft < 60 ? "text-red-600" : "text-gray-900"}`}>
-                  {minutes}:{String(seconds).padStart(2, "0")}
-                </span>
-              </p>
-              <button
-                onClick={() => { setPairingToken(null); setExpiresAt(null); }}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleGenerateToken}
-              disabled={generating}
-              className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
-            >
-              {generating ? "Generating…" : "Generate QR Code"}
-            </button>
-          )}
-        </section>
-
-        {/* Connected Devices */}
-        <section className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2.5 mb-1">
-                <Monitor size={17} className="text-brand-600 flex-shrink-0" />
-                <h2 className="text-base font-semibold text-gray-900">Connected Devices</h2>
-              </div>
-              <p className="text-sm text-gray-500 pl-7">
-                Devices paired with your account. Revoke a device to prevent it from syncing.
-              </p>
-            </div>
-            <button
-              onClick={loadDevices}
-              disabled={devicesLoading}
-              className="ml-4 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors whitespace-nowrap"
-            >
-              {devicesLoading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-
-          {devicesLoading && devices.length === 0 ? (
-            <Spinner size={20} />
-          ) : devices.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No devices connected yet.</p>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {devices.map((device) => (
-                <div key={device.id} className="py-3 flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {device.label ?? "Unnamed device"}
-                    </p>
-                    {device.user_email && (
-                      <p className="text-xs text-gray-500 truncate">{device.user_email}</p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Paired {formatDate(device.created_at)}
-                      {device.last_used_at && (
-                        <> &middot; Last sync {formatDate(device.last_used_at)}</>
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => { setRevokeTarget(device); setRevokeError(null); }}
-                    disabled={revoking === device.id}
-                    className="flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                  >
-                    {revoking === device.id ? "Revoking…" : "Revoke"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
         {/* Account */}
-        <section className="bg-white border border-gray-200 rounded-xl p-6">
+        <section className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
           <div className="flex items-center gap-2.5 mb-4">
             <User size={17} className="text-brand-600 flex-shrink-0" />
             <h2 className="text-base font-semibold text-gray-900">Account</h2>
@@ -312,43 +51,120 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Role</p>
                 <p className="text-sm text-gray-800 capitalize">{currentUser.role.replace("_", " ")}</p>
               </div>
+              <div>
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Tenant ID</p>
+                <p className="text-sm text-gray-800 font-mono">{currentUser.tenant_id}</p>
+              </div>
             </div>
           ) : (
             <Spinner size={20} />
           )}
         </section>
-      </main>
 
-      {/* Revoke device confirmation modal */}
-      <Modal
-        open={!!revokeTarget}
-        onClose={() => { setRevokeTarget(null); setRevokeError(null); }}
-        title="Revoke device?"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-700">
-            Revoke <strong>{revokeTarget?.label ?? "this device"}</strong>? It will no longer be able to sync with this server.
-          </p>
-          {revokeError && <p className="text-sm text-red-600">{revokeError}</p>}
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => { setRevokeTarget(null); setRevokeError(null); }}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={!!revoking}
-              onClick={handleRevokeDevice}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-40"
-            >
-              {revoking ? "Revoking…" : "Revoke"}
-            </button>
+        {/* Documentation & Troubleshooting */}
+        <section className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-2.5 mb-1">
+            <BookOpen size={17} className="text-brand-600 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-gray-900">Documentation</h2>
           </div>
-        </div>
-      </Modal>
+          <p className="text-sm text-gray-500 mb-4 pl-7">
+            Guides, CLI reference, API docs, and troubleshooting for every part of Questbee.
+          </p>
+          <div className="grid grid-cols-2 gap-2 pl-7">
+            {[
+              { label: "Getting Started",   href: `${DOCS_BASE}/getting-started.html` },
+              { label: "CLI Reference",     href: `${DOCS_BASE}/cli-reference.html` },
+              { label: "Mobile App Guide",  href: `${DOCS_BASE}/mobile-app.html` },
+              { label: "Deployment Guide",  href: `${DOCS_BASE}/deployment.html` },
+              { label: "API Reference",     href: `${DOCS_BASE}/api-reference.html` },
+              { label: "Architecture",      href: `${DOCS_BASE}/architecture.html` },
+            ].map(({ label, href }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-brand-50 hover:border-brand-200 text-sm text-gray-700 hover:text-brand-700 transition-colors group"
+              >
+                <FileText size={13} className="flex-shrink-0 text-gray-400 group-hover:text-brand-500" />
+                <span className="flex-1">{label}</span>
+                <ExternalLink size={11} className="flex-shrink-0 text-gray-300 group-hover:text-brand-400" />
+              </a>
+            ))}
+          </div>
+          <div className="mt-3 pl-7">
+            <a
+              href={`${DOCS_BASE}/index.html`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-800 font-medium"
+            >
+              <LifeBuoy size={14} />
+              Browse all docs &amp; troubleshooting →
+            </a>
+          </div>
+        </section>
+
+        {/* About & Support */}
+        <section className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="flex items-center gap-2.5 mb-1">
+            <Heart size={17} className="text-brand-600 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-gray-900">About Questbee</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4 pl-7">
+            Questbee is a self-hosted, offline-first field data collection platform — free and open source (MIT).
+            Built and maintained as a side project.
+          </p>
+          <div className="pl-7 space-y-3">
+            <a
+              href={HOME_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:border-brand-300 hover:bg-brand-50 transition-colors group"
+            >
+              <div className="p-1.5 bg-brand-100 rounded-lg group-hover:bg-brand-200 transition-colors">
+                <ExternalLink size={14} className="text-brand-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 group-hover:text-brand-800">Questbee Webpage</p>
+                <p className="text-xs text-gray-400">Features, pricing, partner program</p>
+              </div>
+            </a>
+            <a
+              href="https://github.com/Questbee/community"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-colors group"
+            >
+              <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-gray-700">
+                  <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900">GitHub — Questbee/community</p>
+                <p className="text-xs text-gray-400">Source code, issues, releases</p>
+              </div>
+            </a>
+            <a
+              href={`${HOME_URL}#support`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 transition-colors group"
+            >
+              <div className="p-1.5 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
+                <Heart size={14} className="text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-900">Support the project</p>
+                <p className="text-xs text-amber-700">
+                  Questbee is free and maintained as a side project. Sponsoring keeps it alive.
+                </p>
+              </div>
+            </a>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

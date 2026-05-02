@@ -8,6 +8,7 @@ import api, { clearAuthCookies } from "@/lib/api";
 const NAV_LINKS = [
   { href: "/dashboard",   label: "Dashboard",   icon: LayoutDashboard },
   { href: "/forms",       label: "Forms",        icon: FileText },
+  { href: "/mobile",      label: "Mobile App",   icon: Smartphone },
   { href: "/submissions", label: "Submissions",  icon: Inbox },
   { href: "/users",       label: "Users",        icon: Users },
   { href: "/api-keys",    label: "API Keys",     icon: Key },
@@ -57,15 +58,8 @@ export default function NavSidebar() {
         })}
       </nav>
 
-      {/* Get the App + Logout */}
-      <div className="px-3 py-4 border-t border-gray-200 space-y-1">
-        <a
-          href="/settings"
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-brand-600 hover:bg-brand-50 transition-colors"
-        >
-          <Smartphone size={16} strokeWidth={2} className="flex-shrink-0" />
-          Get the App
-        </a>
+      {/* Logout */}
+      <div className="px-3 py-4 border-t border-gray-200">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"

@@ -13,6 +13,7 @@ router = APIRouter()
 
 @router.post("/mobile/pairing-token")
 async def generate_pairing_token(
+    label: str | None = Body(None, embed=True),
     current_user: User = Depends(require_role("admin", "manager")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -24,6 +25,7 @@ async def generate_pairing_token(
         user_email=current_user.email,
         token=token,
         expires_at=expires_at,
+        label=label.strip() if label and label.strip() else None,
     )
     db.add(pt)
     await db.commit()
@@ -59,6 +61,24 @@ async def list_devices(
         }
         for d in devices
     ]
+
+
+@router.patch("/mobile/devices/{device_id}")
+async def rename_device(
+    device_id: str,
+    label: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(DeviceToken).where(DeviceToken.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device or device.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if current_user.role not in ("admin", "manager") and device.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot rename another user's device")
+    device.label = label.strip() or None
+    await db.commit()
+    return {"id": device.id, "label": device.label}
 
 
 @router.delete("/mobile/devices/{device_id}", status_code=204)

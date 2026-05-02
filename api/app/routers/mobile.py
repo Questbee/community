@@ -37,7 +37,7 @@ async def pair_device(body: PairRequest, db: AsyncSession = Depends(get_db)):
         tenant_id=pt.tenant_id,
         user_id=pt.user_id,
         user_email=pt.user_email,
-        label=body.label,
+        label=body.label or pt.label,  # prefer app-supplied, fall back to pre-assigned name
         token_hash=hash_token(raw_token),
     )
     db.add(device_token)
